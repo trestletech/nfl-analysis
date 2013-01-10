@@ -1,0 +1,44 @@
+Title
+========================================================
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring web pages (click the **MD** toolbar button for help on Markdown).
+
+When you click the **Knit HTML** button a web page will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+library(ggplot)
+
+source("../parseData.R")
+data <- readData("../data")
+cowboys <- filterToTeam(data, "DAL")
+
+#Find only those plays mentioning T. Romo
+romo <- cowboys[grepl("T.[\\s]?Romo", cowboys$description, perl=TRUE, ignore.case=TRUE),]
+
+#Remove plays in which he was the holder
+romo <- romo[!grepl("Holder-T.[\\s]?Romo", romo$description, perl=TRUE, ignore.case=TRUE),]
+
+#Remove kneel-down from stats calculations
+romo <- romo[!grepl("knee", romo$description, perl=TRUE, ignore.case=TRUE),]
+
+#Remove two-point
+romo <- romo[!grepl("two.point", romo$description, perl=TRUE, ignore.case=TRUE),]
+
+#Remove penalties
+romo <- romo[!grepl("penalty", romo$description, perl=TRUE, ignore.case=TRUE),]
+
+#Remove spikes
+romo <- romo[!grepl("spike", romo$description, perl=TRUE, ignore.case=TRUE),]
+
+romo$result <- NA
+romo$result[grepl("INTERCEPT", romo$description, perl=TRUE, ignore.case=TRUE)] <- "Int"
+romo$result[grepl("incomplet", romo$description, perl=TRUE, ignore.case=TRUE)] <- "Inc"
+romo$result[grepl("touchdown", romo$description, perl=TRUE, ignore.case=TRUE)] <- "TD"
+romo$result[grepl("[\\s]complete", romo$description, perl=TRUE, ignore.case=TRUE)] <- "Com"
+romo$result[grepl("pass.*for[\\s]+(-)?[\\d]+[\\s]+yard", romo$description, perl=TRUE, ignore.case=TRUE)] <- "Com"
+romo$result[grepl("pass.*for[\\s]no gain", romo$description, perl=TRUE, ignore.case=TRUE)] <- "Com"
+romo$result[grepl("scramble", romo$description, perl=TRUE, ignore.case=TRUE)] <- "Scram"
+romo$result[grepl("sack", romo$description, perl=TRUE, ignore.case=TRUE)] <- "Sack"
+```
+
+
