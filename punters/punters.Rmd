@@ -81,22 +81,26 @@ games <- punts[match(unique(punts$gameid), punts$gameid),]
 
 wu_key <- readLines("../wu_key.txt")
 
+punts$temp <- NA
+punts$wind <- NA
+punts$rain <- NA
+punts$snow <- NA
+
 #lookup the weather for each game
 for (i in 1:nrow(games)){
   game <- games[i,]
   gameID <- game$gameid
   
-  print(i)
-  
   weath <- getHistoricWeather(wu_key, lat=game$Lat, long=game$Long, date=mdy(paste(game$month, game$day, game$cyear, sep="/"),quiet=TRUE))
   
-  punts[as.character(punts$gameid)==gameID,]$temp <- weath$meantempi
-  punts[as.character(punts$gameid)==gameID,]$wind <- weath$meanwindspdi
-  punts[as.character(punts$gameid)==gameID,]$prec <- weath$precipi
+  punts[as.character(punts$gameid)==gameID,]$temp <- weath$tempi
+  punts[as.character(punts$gameid)==gameID,]$wind <- weath$wspdi
+  punts[as.character(punts$gameid)==gameID,]$rain <- weath$rain
+  punts[as.character(punts$gameid)==gameID,]$snow <- weath$snow
   
-  saveRDS(games, file="games.Rds")
+  saveRDS(punts, file="punts.Rds")
   
-  Sys.sleep(1)  
+  Sys.sleep(7)  
 }
 
 ```
