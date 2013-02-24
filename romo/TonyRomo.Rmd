@@ -6,7 +6,7 @@ This is an R Markdown document. Markdown is a simple formatting syntax for autho
 When you click the **Knit HTML** button a web page will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
 
 ```{r}
-library(ggplot)
+library(ggplot2)
 
 source("../parseData.R")
 data <- readData("../data")
@@ -30,15 +30,30 @@ romo <- romo[!grepl("penalty", romo$description, perl=TRUE, ignore.case=TRUE),]
 #Remove spikes
 romo <- romo[!grepl("spike", romo$description, perl=TRUE, ignore.case=TRUE),]
 
+assignPlays <- function(data, regex, value){
+  indexes <- grepl(regex, data$description, perl=TRUE, ignore.case=TRUE)
+  if (sum(!is.na(data$result[indexes])) > 0){
+    nonNA <- which(!is.na(data$result) & indexes)
+    warning(paste("The following play was already labeled '", data$result[nonNA] ,"': (", nonNA, ")", data$description[nonNA], sep=""))
+  }
+  message (sum(indexes), " matching plays identified.")
+  data$result[indexes] <- value
+  data
+}
+
 romo$result <- NA
-romo$result[grepl("INTERCEPT", romo$description, perl=TRUE, ignore.case=TRUE)] <- "Int"
-romo$result[grepl("incomplet", romo$description, perl=TRUE, ignore.case=TRUE)] <- "Inc"
-romo$result[grepl("touchdown", romo$description, perl=TRUE, ignore.case=TRUE)] <- "TD"
-romo$result[grepl("[\\s]complete", romo$description, perl=TRUE, ignore.case=TRUE)] <- "Com"
-romo$result[grepl("pass.*for[\\s]+(-)?[\\d]+[\\s]+yard", romo$description, perl=TRUE, ignore.case=TRUE)] <- "Com"
-romo$result[grepl("pass.*for[\\s]no gain", romo$description, perl=TRUE, ignore.case=TRUE)] <- "Com"
-romo$result[grepl("scramble", romo$description, perl=TRUE, ignore.case=TRUE)] <- "Scram"
-romo$result[grepl("sack", romo$description, perl=TRUE, ignore.case=TRUE)] <- "Sack"
+romo <- assignPlays(romo,"pass.*for[\\s]+(-)?[\\d]+[\\s]+yard","Com")
+romo <- assignPlays(romo,"pass.*for[\\s]no gain","Com")
+romo <- assignPlays(romo,"[\\s]complete","Com")
+romo <- assignPlays(romo,"scramble","Scram")
+romo <- assignPlays(romo,"sack","Sack")
+romo <- assignPlays(romo,"up the middle","Sneak")
+romo <- assignPlays(romo,"Sneak","Sneak")
+romo <- assignPlays(romo,"touchdown","TD")
+romo <- assignPlays(romo,"INTERCEPT","Int")
 ```
 
+```{r}
+
+```
 
