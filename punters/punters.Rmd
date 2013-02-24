@@ -1,0 +1,134 @@
+Punter Comparison
+========================================================
+
+```{r, cache=TRUE, warning=FALSE, message=FALSE, echo=FALSE}
+library(ggplot2)
+library(stringr)
+
+source("../parseData.R")
+data <- readData("../data")
+punts <- data[grepl("punts", data$description, perl=TRUE, ignore.case=TRUE),]
+punts <- punts[!grepl("penalty", punts$description, perl=TRUE, ignore.case=TRUE),]
+punts <- punts[!grepl("challenge.+reversed", punts$description, perl=TRUE, ignore.case=TRUE),]
+
+assignPlays <- function(data, regex, value, remove.conflicts=FALSE){
+  indexes <- grepl(regex, data$description, perl=TRUE, ignore.case=TRUE)
+  if (sum(!is.na(data$result[indexes])) > 0){
+    nonNA <- which(!is.na(data$result) & indexes)    
+    if (!remove.conflicts){
+      warning(paste(length(nonNA), " plays overwritten: ", paste("The following play was already labeled '", data$result[nonNA] ,"': (", nonNA, ")", data$description[nonNA], sep=""), sep=""))
+    } else{
+      warning(paste(length(nonNA), " plays conflicted and removed: ", paste("The following play was already labeled '", data$result[nonNA] ,"': (", nonNA, ")", data$description[nonNA], sep=""), sep=""))
+    }
+    
+  }
+  message (sum(indexes), " matching plays identified.")
+  data$result[indexes] <- value
+  
+  if (remove.conflicts){
+    data <- data[-nonNA]
+  }
+  
+  data
+}
+
+punts$result <- NA
+punts <- assignPlays(punts,"out of bound","OOB")
+punts <- assignPlays(punts,"downed","DOWN", remove.conflicts=TRUE)
+punts <- assignPlays(punts,"fair catch","FAIR", remove.conflicts=TRUE)
+punts <- assignPlays(punts,"touchback","TB", remove.conflicts=TRUE)
+punts <- assignPlays(punts,"(recover)|(fumble)","BOB", remove.conflicts=TRUE)
+punts <- assignPlays(punts,"declare(d)?\\s+dead","DEAD", remove.conflicts=TRUE)
+punts$year <- as.integer(substr(punts$gameid, 0, 4))
+
+#for some reason, some plays are labeled as negative minutes, just remove for now.
+punts <- punts[punts$min >= 0,]
+
+#'cause who cares about the pro bowl? Also remove the unlabeled ones
+punts <- punts[!punts$def %in% c("AFC", "NFC", ""), ]
+punts <- punts[!punts$off %in% c("AFC", "NFC", ""), ]
+
+#Assume remaining punts were returned
+punts$result[is.na(punts$result)] <- "RET"
+```
+
+Weather Analysis
+----------------
+
+```{r, echo=FALSE}
+library(stringr)
+library(lubridate)
+
+source("../weather.R")
+```
+
+```{r, echo=FALSE, cache=TRUE}
+#Extract the home stadium and date of game
+punts$cyear <- as.integer(substr(punts$gameid, 1, 4))
+punts$month <- as.integer(substr(punts$gameid, 5, 6))
+punts$day <- as.integer(substr(punts$gameid, 7, 8))
+
+punts$home <- str_match(as.character(punts$gameid), "^[[:digit:]]+_([A-Z]+)@([A-Z]+)")[,3]
+
+#read in stadium location
+stadiums <- read.csv("../teams.csv", header=TRUE)
+punts$Lat <- stadiums$Lat[match(punts$home, stadiums$Abbrev)]
+punts$Long <- stadiums$Long[match(punts$home, stadiums$Abbrev)]
+
+#read in historical weather
+#get the index of one row from each game
+games <- punts[match(unique(punts$gameid), punts$gameid),]
+
+wu_key <- readLines("../wu_key.txt")
+
+#lookup the weather for each game
+for (i in 1:nrow(games)){
+  game <- games[i,]
+  gameID <- game$gameid
+  
+  print(i)
+  
+  weath <- getHistoricWeather(wu_key, lat=game$Lat, long=game$Long, date=mdy(paste(game$month, game$day, game$cyear, sep="/"),quiet=TRUE))
+  
+  punts[as.character(punts$gameid)==gameID,]$temp <- weath$meantempi
+  punts[as.character(punts$gameid)==gameID,]$wind <- weath$meanwindspdi
+  punts[as.character(punts$gameid)==gameID,]$prec <- weath$precipi
+  
+  saveRDS(games, file="games.Rds")
+  
+  Sys.sleep(1)  
+}
+
+```
+
+
+
+```{r, echo=FALSE}
+
+returned <- punts[punts$result=="RET",]
+returned$yards <- NA
+returned$yards <- as.integer(str_extract(str_extract(returned$description, "for .* yard(s)?"), "\\d+"))
+returned$yards[grepl("no gain", returned$description)] <- 0
+
+```
+
+
+
+```{r, echo=FALSE, message=FALSE, results='hide', fig.width=8.6}
+library(ggplot2)
+ggplot(returned, aes(year, yards, group=year)) + geom_boxplot() + xlab ("Season") + ggtitle("Average Punt Return per Season")
+fit <- anova(lm(returned$yards ~ as.factor(returned$year)))
+(fit$"Pr(>F)")[1]
+
+ggplot(returned, aes(as.factor(off), yards)) + geom_boxplot() + ggtitle("Yards Given Up on Punt by Team") + xlab("Punting Team") + theme(axis.text.x = element_text(vjust=0.5,angle=90))
+fit <- anova(lm(returned$yards ~ as.factor(returned$off)))
+(fit$"Pr(>F)")[1]
+
+ggplot(returned, aes(as.factor(def), yards)) + geom_boxplot() + ggtitle("Yards Gained on Punt Return by Team")  + xlab("Return Team") + theme(axis.text.x = element_text(vjust=0.5,angle=90))
+fit <- anova(lm(returned$yards ~ as.factor(returned$def)))
+(fit$"Pr(>F)")[1]
+
+ggplot(aggregate(returned$yards, returned["off"], median), aes(off, x)) + geom_bar(stat="identity") + ggtitle("Average Yards Given Up on Punt") + xlab("Punting Team") + ylab("Yards") + theme(axis.text.x = element_text(vjust=0.5,angle=90))
+
+ggplot(aggregate(returned$yards, returned["def"], median), aes(def, x)) + geom_bar(stat="identity")  + ggtitle("Average Yards Gained on Punt Return") + xlab("Return Team") + ylab("Yards") + theme(axis.text.x = element_text(vjust=0.5,angle=90))
+```
