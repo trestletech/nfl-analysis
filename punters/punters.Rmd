@@ -74,6 +74,7 @@ punts$home <- str_match(as.character(punts$gameid), "^[[:digit:]]+_([A-Z]+)@([A-
 stadiums <- read.csv("../teams.csv", header=TRUE)
 punts$Lat <- stadiums$Lat[match(punts$home, stadiums$Abbrev)]
 punts$Long <- stadiums$Long[match(punts$home, stadiums$Abbrev)]
+punts$dome <- stadiums$Domed[match(punts$home, stadiums$Abbrev)]
 
 #read in historical weather
 #get the index of one row from each game
