@@ -50,76 +50,27 @@ punts <- punts[!punts$off %in% c("AFC", "NFC", ""), ]
 
 #Assume remaining punts were returned
 punts$result[is.na(punts$result)] <- "RET"
+
+punter <- str_match(punts$description, "^\\(.*\\)\\s?(.*) punts")[,2]
+#remove any extra long comments, just want names
+punter[!grepl("\\w+\\.\\s?\\w+", punter)] <- NA
+
+#standardize spacing
+punter <- str_match(punter, "([A-Z]\\.)\\s*(\\w+)")
+punts$punter <- paste(punter[,2], punter[,3])
+punts$punter[is.na(punter[,2])] <- NA
+
+punts$retYards <- NA
+punts[punts$result == "RET",]$retYards <- as.integer(str_extract(str_extract(punts[punts$result=="RET",]$description, "for .* yard(s)?"), "\\d+"))
+punts[punts$result == "RET",]$retYards[grepl("no gain", punts[punts$result == "RET",]$description)] <- 0
+
+saveRDS(punts, file="punts.Rds")
 ```
-
-Weather Analysis
-----------------
-
-```{r, echo=FALSE}
-library(stringr)
-library(lubridate)
-
-source("../weather.R")
-```
-
-```{r, echo=FALSE, cache=TRUE}
-#Extract the home stadium and date of game
-punts$cyear <- as.integer(substr(punts$gameid, 1, 4))
-punts$month <- as.integer(substr(punts$gameid, 5, 6))
-punts$day <- as.integer(substr(punts$gameid, 7, 8))
-
-punts$home <- str_match(as.character(punts$gameid), "^[[:digit:]]+_([A-Z]+)@([A-Z]+)")[,3]
-
-#read in stadium location
-stadiums <- read.csv("../teams.csv", header=TRUE)
-punts$Lat <- stadiums$Lat[match(punts$home, stadiums$Abbrev)]
-punts$Long <- stadiums$Long[match(punts$home, stadiums$Abbrev)]
-punts$dome <- stadiums$Domed[match(punts$home, stadiums$Abbrev)]
-
-#read in historical weather
-#get the index of one row from each game
-games <- punts[match(unique(punts$gameid), punts$gameid),]
-
-wu_key <- readLines("../wu_key.txt")
-
-punts$temp <- NA
-punts$wind <- NA
-punts$rain <- NA
-punts$snow <- NA
-
-#lookup the weather for each game
-for (i in 1:nrow(games)){
-  game <- games[i,]
-  gameID <- game$gameid
-  
-  weath <- getHistoricWeather(wu_key, lat=game$Lat, long=game$Long, date=mdy(paste(game$month, game$day, game$cyear, sep="/"),quiet=TRUE))
-  
-  punts[as.character(punts$gameid)==gameID,]$temp <- weath$tempi
-  punts[as.character(punts$gameid)==gameID,]$wind <- weath$wspdi
-  punts[as.character(punts$gameid)==gameID,]$rain <- weath$rain
-  punts[as.character(punts$gameid)==gameID,]$snow <- weath$snow
-  
-  saveRDS(punts, file="punts.Rds")
-  
-  Sys.sleep(7)  
-}
-
-```
-
-
-
-```{r, echo=FALSE}
-
-returned <- punts[punts$result=="RET",]
-returned$yards <- NA
-returned$yards <- as.integer(str_extract(str_extract(returned$description, "for .* yard(s)?"), "\\d+"))
-returned$yards[grepl("no gain", returned$description)] <- 0
-
-```
-
 
 
 ```{r, echo=FALSE, message=FALSE, results='hide', fig.width=8.6}
+returned <- punts
+
 library(ggplot2)
 ggplot(returned, aes(year, yards, group=year)) + geom_boxplot() + xlab ("Season") + ggtitle("Average Punt Return per Season")
 fit <- anova(lm(returned$yards ~ as.factor(returned$year)))
@@ -133,7 +84,18 @@ ggplot(returned, aes(as.factor(def), yards)) + geom_boxplot() + ggtitle("Yards G
 fit <- anova(lm(returned$yards ~ as.factor(returned$def)))
 (fit$"Pr(>F)")[1]
 
-ggplot(aggregate(returned$yards, returned["off"], median), aes(off, x)) + geom_bar(stat="identity") + ggtitle("Average Yards Given Up on Punt") + xlab("Punting Team") + ylab("Yards") + theme(axis.text.x = element_text(vjust=0.5,angle=90))
+ggplot(aggregate(returned$yards, returned["off"], median, na.rm=TRUE), aes(off, x)) + geom_bar(stat="identity") + ggtitle("Average Yards Given Up on Punt") + xlab("Punting Team") + ylab("Yards") + theme(axis.text.x = element_text(vjust=0.5,angle=90))
 
-ggplot(aggregate(returned$yards, returned["def"], median), aes(def, x)) + geom_bar(stat="identity")  + ggtitle("Average Yards Gained on Punt Return") + xlab("Return Team") + ylab("Yards") + theme(axis.text.x = element_text(vjust=0.5,angle=90))
+ggplot(aggregate(returned$yards, returned["def"], median, na.rm=TRUE), aes(def, x)) + geom_bar(stat="identity")  + ggtitle("Average Yards Gained on Punt Return") + xlab("Return Team") + ylab("Yards") + theme(axis.text.x = element_text(vjust=0.5,angle=90))
+```
+
+We can also do per-punter analysis by extracting the name.
+
+```{r}
+returned2 <- returned
+#trim out the punters with <= 5 punts to get rid of some noise
+returned2[returned2$punter %in% names(table(returned2$punter)[table(returned2$punter) <= 10]), "punter"] <- NA 
+returned2 <- returned2[!is.na(returned2$punter),]
+ggplot(returned2, aes(punter, yards)) + geom_boxplot() + theme(axis.text.x = element_text(vjust=0.5,angle=90))
+
 ```
