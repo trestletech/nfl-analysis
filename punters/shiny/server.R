@@ -73,14 +73,20 @@ shinyServer(function(input, output) {
       #trim out the punters with <= 10 punts to get rid of some noise
       returned2[returned2$punter %in% names(table(returned2$punter)[table(returned2$punter) <= 10]), "punter"] <- NA 
       returned2 <- returned2[!is.na(returned2$punter),]  
-      print(ggplot(returned2, aes(punter, retYards)) + geom_boxplot() + theme(axis.text.x = element_text(vjust=0.5,angle=90)) + ggtitle("Yards on Returned Punts by Punter"))      
+      print(ggplot(returned2, aes(punter, retYards)) + 
+              geom_boxplot() + 
+              theme(axis.text.x = element_text(vjust=0.5,angle=90)) + 
+              ggtitle("Yards on Returned Punts by Punter") + 
+              xlab("Punter") + 
+              ylab("Yards"))      
     
     }else{
       thisPunter <- punterData()
         
       thisTeam <- punts[punts$off %in% teams() & !is.na(punts$off),] 
       thisTeam$group <- as.character(thisTeam$off)
-      thisTeam[thisTeam$punter == input$punter,]$group <- input$punter
+      
+      thisTeam[thisTeam$punter == input$punter & !is.na(thisTeam$punter),]$group <- input$punter
       
       print(ggplot(thisTeam, aes(group, retYards)) + geom_boxplot() + xlab("Group") + ylab("Yards on Returned Punts") + ggtitle("Comparison of Returned Punts Yards by Group"))
     }
