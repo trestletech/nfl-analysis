@@ -1,6 +1,9 @@
-punts <- readRDS("punts.Rds")
-punts[punts$punter %in% names(table(punts$punter)[table(punts$punter) <= 10]), "punter"] <- NA 
-punts <- punts[!is.na(punts$punter),]  
+# punts <- readRDS("punts.Rds")
+# punts[punts$punter %in% names(table(punts$punter)[table(punts$punter) <= 10]), "punter"] <- NA 
+# punts <- punts[!is.na(punts$punter),]  
+# punts <- punts[,-c(1:4, 6:12)]
+# saveRDS(punts, "trimmedPunts.Rds")
+punts <- readRDS("trimmedPunts.Rds")
 
 # 
 # #summarize stats for each punter
